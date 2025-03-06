@@ -133,6 +133,7 @@ export default function TranslatePage() {
       handleTranslate();
     }, 1000); // 1 second delay after typing stops
 
+    //@ts-ignore
     setTypingTimeout(timeout);
 
     // Clean up function to clear the timeout when component unmounts
@@ -141,6 +142,7 @@ export default function TranslatePage() {
         clearTimeout(typingTimeout);
       }
     };
+    //@ts-ignore
   }, [inputText, sourceLanguage, targetLanguage]);
 
   return (
