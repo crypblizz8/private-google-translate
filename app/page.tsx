@@ -1,113 +1,314 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect } from 'react';
+
+export default function TranslatePage() {
+  // Available languages
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'it', name: 'Italian' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'ar', name: 'Arabic' },
+  ];
+
+  // State management
+  const [sourceLanguage, setSourceLanguage] = useState('en');
+  const [targetLanguage, setTargetLanguage] = useState('es');
+  const [inputText, setInputText] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState(null);
+
+  // Swap languages function
+  const swapLanguages = () => {
+    const temp = sourceLanguage;
+    setSourceLanguage(targetLanguage);
+    setTargetLanguage(temp);
+
+    // Swap text content too if available
+    if (translatedText && inputText) {
+      setInputText(translatedText);
+      // Will trigger auto-translation
+    }
+  };
+
+  // Handle translation
+  const handleTranslate = async () => {
+    if (!inputText.trim()) {
+      setTranslatedText('');
+      return;
+    }
+
+    setIsTranslating(true);
+
+    try {
+      const fromLang =
+        languages.find((lang) => lang.code === sourceLanguage)?.name ||
+        sourceLanguage;
+      const toLang =
+        languages.find((lang) => lang.code === targetLanguage)?.name ||
+        targetLanguage;
+
+      // Skip translation if languages are the same
+      if (sourceLanguage === targetLanguage) {
+        setTranslatedText(inputText);
+        setIsTranslating(false);
+        return;
+      }
+
+      // Add more detailed system prompt
+      const systemPrompt = `You are a translation tool that ONLY translates text. Your ONLY function is to translate the exact text provided from ${fromLang} to ${toLang}. 
+      IMPORTANT: 
+      - Do NOT explain the translation
+      - Do NOT answer questions about the content
+      - Do NOT provide definitions or explanations
+      - Do NOT add ANY additional text
+      - ONLY return the direct translation of the input text
+      - If the text appears to be a question, still ONLY translate it, do not answer it`;
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/Llama-3.1-8B-Instruct',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: inputText },
+          ],
+          temperature: 0.2,
+          top_p: 0.95,
+          max_tokens: 2048,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Translation API error:', errorData);
+        throw new Error(`API error: ${errorData.error || response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.choices?.[0]?.message?.content) {
+        setTranslatedText(data.choices[0].message.content.trim());
+      } else {
+        console.error('Unexpected API response format:', data);
+        throw new Error('Invalid response format from translation service');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      setTranslatedText(
+        `Translation failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  // Auto-translate after typing stops
+  useEffect(() => {
+    // Clear any existing timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+
+    // Don't translate if input is empty
+    if (!inputText.trim()) {
+      setTranslatedText('');
+      return;
+    }
+
+    // Set a new timeout for translation
+    const timeout = setTimeout(() => {
+      handleTranslate();
+    }, 1000); // 1 second delay after typing stops
+
+    setTypingTimeout(timeout);
+
+    // Clean up function to clear the timeout when component unmounts
+    return () => {
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+    };
+  }, [inputText, sourceLanguage, targetLanguage]);
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className='min-h-screen bg-gray-100 p-4 flex flex-col items-center justify-center'>
+      <header className='mb-6'>
+        <h1 className='text-3xl font-extrabold text-center text-blue-700'>
+          Private AI Language Translator
+        </h1>
+      </header>
+
+      <main className='w-full max-w-lg bg-white rounded-xl shadow-lg overflow-hidden'>
+        {/* Language selector */}
+        <div className='flex items-center justify-between p-4 bg-blue-50'>
+          <select
+            value={sourceLanguage}
+            onChange={(e) => setSourceLanguage(e.target.value)}
+            className='bg-white border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
           >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+            {languages.map((lang) => (
+              <option key={`source-${lang.code}`} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={swapLanguages}
+            className='bg-white p-2 rounded-full hover:bg-gray-100 focus:outline-none transform transition hover:scale-110'
+          >
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              className='w-6 h-6 text-blue-600'
+            >
+              <polyline points='16 3 21 8 16 13'></polyline>
+              <line x1='21' y1='8' x2='9' y2='8'></line>
+              <polyline points='8 21 3 16 8 11'></polyline>
+              <line x1='3' y1='16' x2='15' y2='16'></line>
+            </svg>
+          </button>
+
+          <select
+            value={targetLanguage}
+            onChange={(e) => setTargetLanguage(e.target.value)}
+            className='bg-white border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+          >
+            {languages.map((lang) => (
+              <option key={`target-${lang.code}`} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
         </div>
-      </div>
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
+        {/* Input text area */}
+        <div className='p-4 border-b'>
+          <div className='relative'>
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder='Enter text to translate'
+              className='w-full h-32 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none'
+            ></textarea>
+            {/* Small typing indicator */}
+            {inputText && typingTimeout && (
+              <div className='absolute bottom-2 right-2'>
+                <span className='text-xs text-blue-500'>
+                  Auto-translating...
+                </span>
+              </div>
+            )}
+          </div>
+          <div className='flex justify-between mt-2'>
+            <span className='text-sm font-semibold text-gray-600'>
+              {inputText.length} characters
             </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+            <button
+              onClick={() => setInputText('')}
+              className='text-xs text-gray-500 hover:text-gray-700'
+            >
+              Clear
+            </button>
+          </div>
+        </div>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
+        {/* Output text area with modern loading state */}
+        <div className='p-4'>
+          <div className='relative'>
+            <textarea
+              value={translatedText}
+              readOnly
+              placeholder='Translation'
+              className='w-full h-32 p-2 bg-gray-50 border border-gray-300 rounded-md focus:outline-none resize-none transition-opacity duration-300 ease-in-out'
+              style={{ opacity: isTranslating ? 0.6 : 1 }}
+            ></textarea>
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+            {/* Modern loading indicator */}
+            {isTranslating && (
+              <div className='absolute inset-0 flex flex-col items-center justify-center'>
+                <div className='flex space-x-2'>
+                  <div
+                    className='w-2 h-2 bg-blue-600 rounded-full animate-bounce'
+                    style={{ animationDelay: '0ms' }}
+                  ></div>
+                  <div
+                    className='w-2 h-2 bg-blue-600 rounded-full animate-bounce'
+                    style={{ animationDelay: '150ms' }}
+                  ></div>
+                  <div
+                    className='w-2 h-2 bg-blue-600 rounded-full animate-bounce'
+                    style={{ animationDelay: '300ms' }}
+                  ></div>
+                </div>
+                <p className='text-sm text-blue-600 mt-2 font-medium'>
+                  Translating...
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className='flex justify-end mt-2'>
+            <button
+              onClick={() => {
+                if (navigator.clipboard && translatedText) {
+                  navigator.clipboard.writeText(translatedText);
+                }
+              }}
+              className='p-2 rounded-full hover:bg-gray-100 focus:outline-none transition-colors'
+            >
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                className={`w-5 h-5 text-blue-600 ${
+                  !translatedText || isTranslating ? 'opacity-50' : ''
+                }`}
+              >
+                <rect x='9' y='9' width='13' height='13' rx='2' ry='2'></rect>
+                <path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <footer className='mt-8 text-center text-xs text-gray-500 w-full'>
+        <p>
+          Made by{' '}
+          <a
+            href='https://x.com/crypblizz'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='hover:text-gray-700 text-blue-500'
+          >
+            @crypblizz
+          </a>
+        </p>
+      </footer>
+    </div>
   );
 }
