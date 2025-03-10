@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 export default function TranslatePage() {
   // Available languages
@@ -148,8 +149,15 @@ export default function TranslatePage() {
   return (
     <div className='min-h-screen bg-gray-100 p-4 flex flex-col items-center justify-center'>
       <header className='mb-6'>
-        <h1 className='text-3xl font-extrabold text-center text-blue-700'>
-          Private AI Language Translator
+        <Image
+          src='/noogle.png'
+          alt='Noogle Logo'
+          width={200}
+          height={50}
+          className='mx-auto'
+        />
+        <h1 className='text-3xl font-light text-center text-black'>
+          Translate
         </h1>
       </header>
 
